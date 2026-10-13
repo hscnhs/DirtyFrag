@@ -60,23 +60,6 @@ jobs:
     steps:
       - uses: actions/checkout@v7
 
-      - name: Validate signing config
-        if: github.event_name != 'pull_request'
-        run: |
-          if [ "${{ secrets.KEYSTORE }}" = "" ]; then
-            echo "::error::Signing secrets not configured. KEYSTORE secret is required for release builds."
-            exit 1
-          fi
-
-      - name: Create keystore
-        if: github.event_name != 'pull_request'
-        run: |
-          # app/build.gradle.kts signs with app/keystore.jks (gitignored; the README
-          # documents how to generate it), so the KEYSTORE secret has to be decoded
-          # into app/, not into the repo root the upstream workflow used.
-          echo ${{ secrets.KEYSTORE }} | base64 --decode > app/keystore.jks
-          ls -l app/keystore.jks
-
       - name: Download DF LKMs
         uses: actions/download-artifact@v7
         with:
@@ -93,26 +76,13 @@ jobs:
 
       - name: Build DFRoot APK
         run: |
-          if [ "${{ github.event_name }}" = "pull_request" ]; then
-            ./gradlew :app:assembleDebug
-          else
-            ./gradlew :app:assembleRelease
-          fi
-
-      - name: Stage release asset
-        if: startsWith(github.ref, 'refs/tags/')
-        run: |
-          # app/build.gradle.kts always writes app/build/outputs/apk/release/dirtyfrag.apk,
-          # so the versioned asset name comes from the tag (v1.11 -> DirtyFrag-v1.11.apk).
-          cp app/build/outputs/apk/release/dirtyfrag.apk "DirtyFrag-${GITHUB_REF_NAME}.apk"
-          ls -l DirtyFrag-*.apk
+          ./gradlew :app:assembleDebug
 
       - name: Upload DFRoot APK
         uses: actions/upload-artifact@v7
         with:
           name: DFRoot
           path: |
-            app/build/outputs/apk/release/dirtyfrag.apk
             app/build/outputs/apk/debug/dirtyfrag.apk
 
       - name: Build release notes from CHANGELOG
