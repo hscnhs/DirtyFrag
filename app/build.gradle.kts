@@ -8,7 +8,7 @@ android {
 
     defaultConfig {
         applicationId = "df.root"
-        minSdk = 32
+        minSdk = 30
         targetSdk = 37
         versionCode = 32
         versionName = "1.15"
@@ -18,27 +18,11 @@ android {
         }
     }
 
-    signingConfigs {
-        create("keystore") {
-            storeFile = file("keystore.jks")
-            storePassword = "dirtyfrag"
-            keyAlias = "dirtyfrag"
-            keyPassword = "dirtyfrag"
-        }
-    }
+    signingConfigs {}
 
     buildTypes {
         debug {
             signingConfig = signingConfigs.getByName("keystore")
-        }
-        release {
-            signingConfig = signingConfigs.getByName("keystore")
-            isMinifyEnabled = true
-            isShrinkResources = true
-            proguardFiles(
-                getDefaultProguardFile("proguard-android-optimize.txt"),
-                "proguard-rules.pro"
-            )
         }
     }
 
