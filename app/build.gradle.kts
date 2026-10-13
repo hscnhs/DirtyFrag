@@ -21,9 +21,7 @@ android {
     signingConfigs {}
 
     buildTypes {
-        debug {
-            signingConfig = signingConfigs.getByName("keystore")
-        }
+        debug {}
     }
 
 // AGP 9 removed the old applicationVariants API; this is the replacement.
