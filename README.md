@@ -31,7 +31,8 @@ hardening) and keeps upstream's SU-manager agnostic design.
 A fresh install of DirtyFrag gets a new Android UID, so the grant in the manager has to be given
 again after every reinstall.
 
-<img width="540" height="1170" alt="Screenshot_20261007_224642" src="https://github.com/user-attachments/assets/b12c72e3-05de-44d1-ad9f-251672370d8b" />
+<img width="540" height="1170" alt="Screenshot_20261015_220718" src="https://github.com/user-attachments/assets/bd727962-a520-4820-a91a-90147aa84faa" />
+
 
 ## Features
 
@@ -43,7 +44,9 @@ again after every reinstall.
 - **KernelSU Modules** on/off - works without root, applied by the kernel module before ksud starts
 - RO Partition Protection
 - Advanced log, with one tap to save it to Downloads
-- Update pill in the title, so you can see when a newer release is published
+- **Odin** pill in the toolbar: its dot says whether this firmware will let the device into download mode, and
+  tapping it opens the three facts that decision is made from
+- When a newer release is published, the headline itself becomes a lime **Update** pill - one tap from the release
 - Shizuku not needed
 
 ## FAQ
@@ -81,8 +84,7 @@ re-run a "slow" run, the daemon may still be working.
 
 **Q: How do I remove root cleanly?**
 
-A: Use the in-app **Remove KSU/KSUD** entry. Never run `ksud uninstall` by hand alongside DirtyFrag:
-it tries to restore a boot image backup that this flow never made, and can reboot the device.
+A: Before unrooting, use file manager with root and delete /data/adb/ (KernelSU, KSUD residue)
 
 ## Building
 

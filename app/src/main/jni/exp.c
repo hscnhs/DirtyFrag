@@ -17,6 +17,8 @@
 #include <arpa/inet.h>
 #include "aes256.h"
 
+#define eos(s) (s + strlen(s))
+
 static const char kCrashDump[] = "/apex/com.android.runtime/bin/crash_dump64";
 static char    *libcxx_ko_target;
 
@@ -303,8 +305,30 @@ static int read_device_versions(int *andr, int *major, int *minor) {
     if (uname(&u) != 0) return -1;
     if (sscanf(u.release, "%d.%d", major, minor) != 2) return -1;
     const char *m = strstr(u.release, "android");
-    if (!m) return -1;
-    *andr = atoi(m + 7);
+    if (!m) {
+        /* Some vendor kernels drop the "androidNN" token from uname -r, which
+         * leaves nothing to parse here. ro.vendor.build.version.release carries
+         * the same number, so fall back to it - but the popen is untrusted: it
+         * can fail outright, and the property is neither guaranteed numeric nor
+         * short, so nothing is built until a leading integer has actually been
+         * read out of it. */
+        printf("uname -r is missing Android version, trying getprop\n");
+        char vendor_ver[16] = { 0 };
+        FILE *f = popen("getprop ro.vendor.build.version.release", "r");
+        if (f) {
+            if (!fgets(vendor_ver, sizeof(vendor_ver), f))
+                vendor_ver[0] = '\0';
+            pclose(f);
+        }
+        int prop = 0;
+        if (sscanf(vendor_ver, "%d", &prop) != 1 || prop <= 0) {
+            printf("getprop returned no usable Android version\n");
+            return -1;
+        }
+        *andr = prop;
+        return 0;
+    }
+    *andr = atoi(m + strlen("android"));
     return (*andr > 0) ? 0 : -1;
 }
 
@@ -377,29 +401,14 @@ static void cleanup(void) {
 }
 
 int find_hook_target(const char *lib, const char *sym,
-                     uint64_t *hook, uint64_t *payload, uint32_t *first_insn);
+                     uint64_t *hook, uint64_t *payload, uint32_t *first_insn,
+                     size_t shellcode_size);
 
 static int patch_hook(const char *lib, const char *sym,
                       char *stage_data, uint32_t stage_len, char *stage_start,
                       char *first_inst_copy, struct PatchRestore *restore) {
-    uint64_t hook_off, shell_off; uint32_t first_insn;
-    printf("Finding symbol offsets for %s:\n", lib);
-    if (find_hook_target(lib, sym, &hook_off, &shell_off, &first_insn)) {
-        printf("failed to find offsets for %s\n", lib); return 1;
-    }
-    printf("Found: hook=0x%lx shellcode=0x%lx len=%u\n", hook_off, shell_off, stage_len);
-
     const uint32_t BRANCH = 0x14000000;
     uint32_t start_delta = (uint32_t)(stage_start - stage_data);
-    uint32_t hook_insn = BRANCH | (((shell_off + start_delta - hook_off) >> 2) & 0x3ffffff);
-
-    if (first_insn == hook_insn) {
-        printf("%s already patched\n", lib); return 0;
-    }
-    uint32_t jmpback = BRANCH |
-        (((hook_off + 4) - (shell_off + stage_len - 4)) >> 2 & 0x3ffffff);
-    *(uint32_t *)&stage_data[stage_len - 4] = jmpback;
-    *(uint32_t *)&first_inst_copy[0] = first_insn;
 
     size_t padded; char *buf = pad16(stage_data, stage_len, &padded);
     if (!buf) { printf("patch: %s - pad16 alloc failed\n", lib); return -1; }
@@ -408,6 +417,23 @@ static int patch_hook(const char *lib, const char *sym,
         printf("shellcode too large to save (%zu)\n", padded);
         free(buf); return -1;
     }
+
+    uint64_t hook_off, shell_off; uint32_t first_insn;
+    printf("Finding symbol offsets for %s:\n", lib);
+    if (find_hook_target(lib, sym, &hook_off, &shell_off, &first_insn, padded)) {
+        printf("failed to find offsets for %s\n", lib); free(buf); return 1;
+    }
+    printf("Found: hook=0x%lx shellcode=0x%lx len=%u\n", hook_off, shell_off, stage_len);
+
+    uint32_t hook_insn = BRANCH | (((shell_off + start_delta - hook_off) >> 2) & 0x3ffffff);
+
+    if (first_insn == hook_insn) {
+        printf("%s already patched\n", lib); free(buf); return 0;
+    }
+    uint32_t jmpback = BRANCH |
+        (((hook_off + 4) - (shell_off + stage_len - 4)) >> 2 & 0x3ffffff);
+    *(uint32_t *)&buf[stage_len - 4] = jmpback;
+    *(uint32_t *)&buf[first_inst_copy - stage_data] = first_insn;
 
     uint64_t aligned = hook_off & ~(uint64_t)15;
     int fd = open(lib, O_RDONLY);
