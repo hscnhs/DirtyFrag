@@ -31,7 +31,8 @@ hardening) and keeps upstream's SU-manager agnostic design.
 A fresh install of DirtyFrag gets a new Android UID, so the grant in the manager has to be given
 again after every reinstall.
 
-<img width="540" height="1170" alt="Screenshot_20261015_220718" src="https://github.com/user-attachments/assets/bd727962-a520-4820-a91a-90147aa84faa" />
+<img width="540" height="1170" alt="Screenshot_20261101_001753" src="https://github.com/user-attachments/assets/78a9a0ce-7769-4107-8fcd-623f2df1c073" />
+
 
 
 ## Features
@@ -44,8 +45,13 @@ again after every reinstall.
 - **KernelSU Modules** on/off - works without root, applied by the kernel module before ksud starts
 - RO Partition Protection
 - Advanced log, with one tap to save it to Downloads
-- **Odin** pill in the toolbar: its dot says whether this firmware will let the device into download mode, and
-  tapping it opens the three facts that decision is made from
+- **Odin** pill in the toolbar: its dot says whether the device will answer a download-mode request on
+  this boot, and tapping it opens the three facts that decision is made from
+- **Odin access you can write** - since 1.17, behind Expert mode and needing root: the **Recovery Writer**
+  switch on that same pill authorises or clears download mode for the current boot by changing one
+  authorisation byte in Samsung's vault, then reading it back to confirm the write actually took. The
+  vendor clears that byte on its own schedule and a reboot drops DirtyFrag's root with it, so
+  **Autorun Writer** asks for the same write again at every reroot
 - When a newer release is published, the headline itself becomes a lime **Update** pill - one tap from the release
 - Shizuku not needed
 
@@ -145,3 +151,15 @@ next privileged call to the hooked function runs the shellcode, which loads the 
 - Original PoC and various code: https://github.com/lsposed/lspromise
 - SELinux permissive kernel modules and various code: https://github.com/polygraphene/DFReroot
 - Unprivileged XFRM socket method: https://github.com/combeng6th/DirtyInit
+
+## License
+
+GPL-2.0-only - the full text is in [LICENSE](LICENSE), the file upstream added in `4ec133c` because
+the upstream maintainer asked for one. Upstream keeps its own copyright on its code; everything this
+fork adds on top of it is licensed under the same GPL-2.0-only, from the 1.17 merge onward.
+
+That single licence has one consequence worth stating before anyone ports code in: **GPL-2.0-only
+cannot absorb GPL-3.0-only code**. A GPL-3 reference - the Samsung download-mode (Odin) work, for
+example - may be read for behaviour, record formats and API naming, and none of its code may be
+copied, translated or linked into this tree. The same rule is written down in
+[docs/d2-download-mode-writer.md](docs/d2-download-mode-writer.md).

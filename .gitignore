@@ -16,6 +16,7 @@ keystore.jks
 app/keystore.jks
 *.log
 apk/
+.DS_Store
 
 # LKM build artifacts
 lkm/*.cmd
@@ -38,4 +39,7 @@ app/src/main/jni/ko/*.ko
 
 # staged release APK for the GitHub release asset
 /release/
+
+# the standalone adb build of the vault harness (df.d2.Harness)
+/d2/dist/
 __pycache__/

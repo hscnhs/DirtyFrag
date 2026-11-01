@@ -1,13 +1,74 @@
 # Changelog
 
-## Unreleased
+## 1.17
 
-- Watching [chisewaguri/DFRoot](https://github.com/chisewaguri/DFRoot/tree/upstream-standalone): it drops
-  the separate bootstrap binary and the staged copy of ksud, and has the kernel module exec the selected
-  manager's own `libksud.so`, passing the package name and both switches as insmod parameters. That is
-  worth taking once it is rebased onto upstream 4.5 and lands upstream - on its own the branch re-adds the
-  `rmmod oplus_*` chain behind issue #21, and it only writes the `dfm0`/`dfm1` markers our progress bar
-  does not read.
+Based on upstream DFRoot 4.6 - 4.7, merged into this fork. `versionCode` 34, `versionName` 1.17.
+
+### D2 - the download-mode authorisation byte, read and written from the phone
+- The DL/Recovery row is now read from the vault instead of assumed. The record is
+  `[lock, maintenance, at_command]`, and the row says **D2 Blocked** on exactly `[1, 0, 0]` - the one
+  triple the bootloader refuses Odin on - and **Allowed** otherwise. `Unknown` until the vault answers,
+  **Not gated here** where the firmware never gated download mode.
+- Byte 2 can be authorised or cleared from the app, behind Expert Mode. Every call is one
+  read-modify-verify: read the `DMC` vault, refuse a record whose first three bytes are not each 0 or 1,
+  change only byte 2, write it back, re-read it, and report `written` only when it stuck.
+  `already-authorized`, `write-failed`, `verify-failed` and `unsupported` stay separate outcomes, and
+  nothing retries a blind second time.
+- The writer is a one-shot process, not a daemon: a 5.5 kB launcher `execve`s `app_process64` with this
+  app's own installed `base.apk` on the classpath, and the harness drops itself to uid 1000. Nothing is
+  copied to disk, nothing is injected into `system_server`, no sepolicy rule is added, and nothing stays
+  resident - `ps -A` after a run holds none of it. Measured on the SM-S931B. Not watched end to end:
+  booting patched firmware into Odin and seeing it accepted. The full write-up, including that gap, is
+  [docs/d2-download-mode-writer.md](https://github.com/mitschud/DirtyFrag/blob/v1.17/docs/d2-download-mode-writer.md).
+
+### Autorun Writer honours its word while the app is running
+- A reboot clears the vendor byte, and DirtyFrag's root is a page-cache patch, so with the switch on and
+  Expert Mode armed the app re-reads the vault and writes the byte again at each reroot - once per root,
+  because a refused `su` is a state and not a retry cue. The boot path stays, but on this vendor it
+  cannot be the only one.
+- A write the switch makes on its own is reported in the run log, not only in logcat.
+- The recovery reading now follows root: the card repaints when `su` appears or leaves the path, instead
+  of going on showing the answer it computed before a reboot.
+
+### UI
+- One verdict row, **DL/Recovery**, replaces "Download Mode", "Recovery Mode" and "Last Check"; the
+  writer switch's thumb *is* the authorisation byte, so that byte has no row of its own; the recovery
+  card is two switches at one fixed width; and switches are only offered where there is a gate to write
+  behind.
+- The app carries no androidx at all, and the pill paints its own fill - which also brings the share
+  circle back on screen, where it had been laid out past the left edge.
+
+### Engine - upstream 4.6 - 4.7
+- The instruction patch stopped guessing prologues: it writes `BTI C`, `MOV x0, #0`, `RET` at the
+  function entry instead of decoding preambles and picking `retaa`/`retab` per SoC.
+- On kernels built without `CONFIG_SECURITY_SELINUX_DEVELOP`, the module reads `selinux_state` back and
+  patches `avc_has_perm` and `avc_has_perm_noaudit` to return 0 (upstream #172).
+- A Log buffer size of Off in Developer Options is now reported up front instead of turning up later as
+  an unexplained timeout (upstream #173).
+
+### Fixed - the Android version that picks the LKM (issue #73)
+- The kernel's GKI level picks the module, read from `uname -r` and `ro.vendor.build.version.release`
+  rather than the marketing version - which on an `android15-6.6` phone reports `17`. Where a level has
+  no exact row the nearest one is taken, ties broken downward, and the run log says which module was
+  guessed. Kernels with no row are still refused, not guessed at.
+
+### Fixed - opening a saved log crashed below Android 14
+- `readLastLog()` used `Matcher` overloads that only exist from API 34 while `minSdk` is 32, so Android
+  12L and 13 threw `NoSuchMethodError` as soon as a log file was read. The overloads that have existed
+  since the first API level do the same job.
+
+### LKM - all eight modules ship in the APK
+- The eight tracked `app/src/main/jni/ko/dfroot-<KMI>.ko` are rebuilt from the merged source of this
+  tree, not the 1.16-era binaries.
+- They reach a phone embedded in `lib/arm64-v8a/libdfroot.so` through the `.incbin` block in `exp.c`, so
+  there is no `ko/` entry in the APK to look at. This release's APK was checked file by file: its
+  `libdfroot.so` holds all eight byte for byte, 97,280 of its 124,568 bytes, and they are the tracked
+  copies from this tree.
+
+### Upstream
+- Watching [chisewaguri/DFRoot](https://github.com/chisewaguri/DFRoot/tree/upstream-standalone), which
+  drops the separate bootstrap binary and has the module exec the manager's own `libksud.so`. Worth
+  taking once it is rebased onto upstream 4.5 and lands upstream.
 
 ## 1.16
 
